@@ -1,0 +1,144 @@
+#include <iostream>
+#include <fstream>
+#include <string.h>
+
+void FullWafer_breakdown(){
+  gStyle-> SetOptStat(0);
+  TCanvas* c0 = new TCanvas("c0","",1300,900);
+  c0-> cd();
+  const int Num_Folder=3;
+  char Floder[Num_Folder][200]={"190122_NCU/KEI_2410/HGcal_6inch_02_Full",
+				"190223_NCU/KEI_2410/HGcal_6inch_04_Full",
+				"190225_NCU/KEI_2410/HGcal_6inch_07_Full"};
+
+
+   int Volt_cut=100;
+   double dlimit=0;
+   double ulimit=600;
+
+   const Int_t Number = 6;
+    Double_t Red[Number]   = { 0.5, 1., 1., 0., 0.5, 0};
+    Double_t Green[Number] = { 0., 0., 1., 1., 1., 1};
+    Double_t Blue[Number]  = { 1., 0., 0., 0., 1., 1};
+    Double_t Stops[Number] = { 0., 0.1, 0.2, 0.6, 0.8, 1. };
+    Int_t nb= 2048;
+    TColor::CreateGradientColorTable(Number,Stops,Red,Green,Blue,nb);
+
+  /*************load channel map*****************/
+  int num_w, num_b, num_x, num_u;
+  int ch[133],x[133],u[133];
+  string inputStr;
+  fstream map;
+  map.open("channel_map.txt",ios::in);
+  if(map){
+    getline(map,inputStr);
+    while(map >> num_w >> num_b >> num_x >> num_u){
+      ch[num_w - 1] = num_b;
+      x[num_w - 1] = num_x;
+      u[num_w - 1] = num_u;
+      //cout << num_w << "\t" << ch[num_w - 1] << "\t" << x[num_w - 1] << "\t" << u[num_w - 1] << endl;
+    }
+  }
+  else
+    cout << "can't load map file" << endl;
+  map.close();
+  /**********************************************/
+  
+  /***********Creat/inistal HexCell**************/ 
+  TH2Poly* hex = new TH2Poly();
+  hex-> Honeycomb(0,0,0.6,12,15);
+  int Bins = hex-> GetNumberOfBins();
+  for(int i=0;i<Bins+1;++i){
+    hex-> SetBinContent(i,-99);
+  }
+  /**********************************************/
+
+  fstream file;
+  double V, I, I1, I2, I3, I4, rate, V_b, kap1, kap2, kap3;
+  char path[200], name[200];
+  char *p1, *p2;
+  TH1F* h1= new TH1F("","",1000,0,500);
+  TLine* l1= new TLine();
+  l1-> SetVertical();
+  for(int wafer=0;wafer<Num_Folder;++wafer){
+    for(int i=0;i<133;++i){
+      TGraph* g1= new TGraph();
+      sprintf(path,"/home/kycheng/Silicon_Sensor/HGcal_Sensor/%s/%03d/IV.txt",Floder[wafer],i+1);
+      file.open(path,ios::in);
+      if(file){
+	int j=0;
+	V_b=0;
+	while(file >> V >> I){
+	  if(j>0){
+	    rate = (I-I1)/10;
+	    if(rate>15 && V_b==0)
+	      V_b=V;
+	  }
+	  if(j>3){
+	    kap1 = (-I + 16*I1 - 30*I2 + 16*I3 - I4)/1200.;
+	    //g1-> SetPoint(j,V-20,kap1);
+	    //h1-> Fill(rate);
+	    if(kap1>1 && V_b==0)
+	      V_b=V-20;
+	    if(kap2>kap1 && kap2>kap3 && kap2>0.5 && V_b==0)
+	      V_b=V-30;
+	  }
+	  g1-> SetPoint(j,V,I);
+	  I4=I3;I3=I2;I2=I1;I1=I;
+	  kap3=kap2;kap2=kap1;
+	  ++j;
+	}
+      }
+      else
+	cout << "cna't open " << path << endl;
+      file.close();
+
+      g1-> SetMarkerStyle(20);
+      g1-> SetMarkerColor(i%10+1);
+      g1-> SetLineColor(i%10+1);
+      g1-> SetLineWidth(2);
+
+      if(i%10==0){
+	if(i!=0){
+	  sprintf(path,"/home/kycheng/Silicon_plot/FullWafer/w%d_break%d.png",wafer,i);
+	  c0-> Print(path);
+	}
+	g1-> Draw("ap");
+	g1-> Draw("pl");
+           }
+      else
+	g1-> Draw("pl,same");
+      l1-> SetLineColor(i%10+1);
+      if(V_b!=0)
+	l1-> DrawLine(V_b,0,V_b,10000);
+      if(V_b!=0)
+      hex-> SetBinContent(ch[i],V_b);
+    }//end channel loop
+    strcpy(name, Floder[wafer]);
+    p2= strtok(name,"_");
+    strcpy(name, Floder[wafer]);
+    p1= strtok(name,"/");
+    p1= strtok(NULL,"/");
+    p1= strtok(NULL,"/");
+    sprintf(path,"/home/kycheng/Silicon_plot/FullWafer/%s_break_%s.png",p1,p2);
+
+    hex-> SetTitle(p1);
+    hex-> Draw("colz,text");
+    hex-> SetContour(nb);
+    hex-> GetZaxis()-> SetRangeUser(dlimit,ulimit);
+    
+    //gSystem-> Exec("mkdir /home/kycheng/Silicon_plot/FullWafer");
+    c0-> Print(path);    
+  }//end wafer loop
+  //h1-> Draw();
+  //c0-> Print("/home/kycheng/Silicon_plot/FullWafer/h1.png");
+
+  /**************plot channel map*************/
+  /*for(int i=0;i<133;++i)
+    hex-> SetBinContent(ch[i],i+1);
+  hex-> SetTitle("channel map");
+  hex-> GetZaxis()-> SetRangeUser(0,133);
+  hex-> Draw("colz,text");
+  c0-> Print("/home/kycheng/Silicon_plot/FullWafer/channel_map.png");*/
+  /*******************************************/
+}

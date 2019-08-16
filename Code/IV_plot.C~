@@ -1,0 +1,98 @@
+#include <iostream>
+#include <fstream>
+#include <string.h>
+#include <TCanvas.h>
+#include <TPad.h>
+#include <TROOT.h>
+#include <TStyle.h>
+
+
+void IV_plot(){
+  const int wafer=3;
+  const int Day=3;
+  int Sensor[wafer]={2,4,7};
+  int Color[17]={1,2,3,4,6,7,8,9,11,12,28,30,36,38,40,42,46};
+  char Date[Day][100]={"190222_NCU/KEI_2410","190223_NCU/KEI_2410","190225_NCU/KEI_2410"};
+  const double VStart=0;
+  const double VStop=1000;
+  const double VStep=10;
+  const int Cellnumber=2;
+  const int Eventnumber=101;
+  const double RangeDown=0;
+  const double RangeUp=10000;
+  bool BGSubtraction=0;
+  bool logScale=0;
+  char Filename[200];
+  char Title[200];
+  char Celltype[Cellnumber][20]={"014","058"};
+  char Date_Title[Day][50]={"","",""};
+  char level[20]="nA";
+  double V[Day][wafer][Cellnumber][Eventnumber];
+  double I[Day][wafer][Cellnumber][Eventnumber];
+  
+  //Read data
+  //for(int day=0;day<Day;++day){
+    for(int type=0;type<Cellnumber;++type){
+      for(int No=0;No<wafer;++No){ //sensor
+	sprintf(Filename,"/home/kycheng/Silicon_Sensor/HGcal_Sensor/%s/HGcal_6inch_%02d_Full/%s/IV.txt",Date[No], Sensor[No], Celltype[type]);
+	FILE*r1;
+	r1=fopen(Filename,"r");
+	if(r1){
+	  //printf("Sensor=%d Type=%s No=%d",Sensor,Celltype[type],No+1);
+	  for(int i=0;i<Eventnumber;++i){
+	    fscanf(r1,"%lf\t%lf\n",&V[No][No][type][i],&I[No][No][type][i]);
+	    //printf("V=%lf\tI=%lf\n",V[type][No][i],I[type][No][i]);
+	  }
+	}
+      }// No loop end
+    }// type loop end
+    //}// day loop end
+  cout << 1 << endl;
+  TCanvas *c0 = new TCanvas("c0","IV",1024,768);
+  c0-> cd();
+  if(logScale)c0-> SetLogy();
+  gStyle-> SetOptStat(0);
+
+  if(!BGSubtraction){
+    for(int type=0;type<Cellnumber;++type){
+      TLegend *leg = new TLegend(0.2,0.65,0.4,0.85,NULL,"brNDC");
+      leg->SetBorderSize(0);
+      leg->SetTextFont(62);
+      leg->SetLineColor(1);
+      leg->SetLineStyle(1);
+      leg->SetLineWidth(1);
+      leg->SetFillColor(0);
+      leg->SetFillStyle(1001);
+      TMultiGraph *mg = new TMultiGraph();
+      for(int No=0;No<wafer;++No){
+	//for(int day=0;day<Day;++day){
+	  TGraph* g1=new TGraph(Eventnumber,V[No][No][type], I[No][No][type]);
+	  sprintf(Title,"HGCal Ch%s",Celltype[type]);
+	  mg-> SetTitle(Title);
+	  mg-> GetXaxis()-> SetTitle("V");
+	  mg-> GetYaxis()-> SetTitle(level);
+	  mg-> GetXaxis()-> SetRangeUser(VStart+VStep,VStop);
+	  mg-> GetYaxis()-> SetRangeUser(RangeDown,RangeUp);
+	  g1-> SetMarkerStyle(20);
+	  g1-> SetMarkerSize(1);
+	  g1-> SetMarkerColor(Color[No]);
+	  mg-> Add(g1);
+	    /*if(No==0)
+	    g1-> Draw("ap");
+	  else
+	  g1-> Draw("same,p");*/
+	  sprintf(Title,"Wafer %d %s",Sensor[No],Date_Title[No]);
+	  leg-> AddEntry(g1,Title,"p");
+	  //}//end day loop
+      }//end No loop
+      mg-> Draw("ap");
+      leg-> Draw();
+      if(logScale)
+	sprintf(Filename,"/home/kycheng/Silicon_plot/190425_NCU/%s_%d_%d_log.png",Celltype[type],Sensor[0],Sensor[wafer-1]);
+      else
+	sprintf(Filename,"/home/kycheng/Silicon_plot/190425_NCU/%s_%d_%d_%.0lf.png",Celltype[type],Sensor[0],Sensor[wafer-1],RangeUp);
+      c0-> Print(Filename);
+    }//end type loop
+  }//end BG if
+
+}

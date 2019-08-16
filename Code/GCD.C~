@@ -1,0 +1,106 @@
+#include <iostream>
+#include <fstream>
+#include <string.h>
+
+void GCD(){
+  const int datapoint=201;
+  const int Wafer_n=1;
+  int Wafer[Wafer_n]={3};
+  char Floder[Wafer_n][200]={"190226_NCU/KEI_4200"};
+  const int Bias_n=3;
+  char Bias[Bias_n][50]={"NAN",//BG
+			 "10V",
+			 "20V"};
+  int Color[Bias_n]={0,1,4};
+  char path[200],name[100];
+  double Time,AI,V,I;
+  double VG0[datapoint], IG0[datapoint];
+  double VG1[datapoint], IG1[datapoint];
+  double V0[datapoint], I0[datapoint];
+  double V1[datapoint], I1[datapoint];
+  string input;
+  fstream r1;
+
+  TCanvas* c0 = new TCanvas("c0","",1024,768);
+  c0-> cd();
+
+  TLegend* leg = new TLegend(0.7,0.2,0.8,0.3);
+  
+  for(int wafer=0;wafer<Wafer_n;++wafer){
+    memset(VG1,0,datapoint*sizeof(double));
+    memset(IG1,0,datapoint*sizeof(double));
+    leg-> Clear();
+    TMultiGraph* mg0 = new TMultiGraph();
+    TMultiGraph* mg1 = new TMultiGraph();
+    for(int volt=0;volt<Bias_n;++volt){
+      memset(V1,0,datapoint*sizeof(double));
+      memset(I1,0,datapoint*sizeof(double));
+      for(int time=0;time<11;++time){
+	sprintf(path,"/home/kycheng/Silicon_Sensor/HGcal_Sensor/%s/%d/GCD/%s/iv#1@%d.txt",Floder[wafer],Wafer[wafer],Bias[volt],time+1);
+	r1.open(path,ios::in);
+	if(r1){
+	  int i=0;
+	  getline(r1,input);
+	  while(r1 >> Time >> AI >> V >> I){
+	    if(time>0){
+	      if(volt>0){
+		V1[i]=-V;
+		I1[i]+=I;
+	      }
+	      else{
+		VG1[i]=-V;
+		IG1[i]+=I;
+	      }
+	      ++i;
+	    }
+	    else{
+	      if(volt>0){
+		V0[i]=-V;
+		I0[i]=I;
+	      }
+	      else{
+		VG0[i]=-V;
+		IG0[i]=I;
+	      }
+	      ++i;
+	    }
+	  }//end read file
+	}
+	else
+	  cout << "can't open " << path << endl;
+	r1.close();
+      }//end time loop
+      for(int i=0;i<datapoint;++i){
+	if(volt>0){
+	  I1[i]=(I1[i]/10.)-IG1[i];
+	  I0[i]-=IG0[i];
+	}
+	else
+	  IG1[i]/=10.;
+      }
+      if(volt>0){  
+	TGraph* g0 = new TGraph(datapoint,V0,I0);
+	TGraph* g1 = new TGraph(datapoint,V1,I1);
+	g0-> SetLineColor(Color[volt]);
+	g1-> SetLineColor(Color[volt]);
+	g0-> SetMarkerColor(Color[volt]);
+	g1-> SetMarkerColor(Color[volt]);
+	g0-> SetMarkerStyle(20);
+	g1-> SetMarkerStyle(20);
+	mg0-> Add(g0,"pl");
+	mg1-> Add(g1,"pl");
+	leg-> AddEntry(g1,Bias[volt],"pl");
+      }
+    }//end volt loop
+    mg0-> Draw("a");
+    mg0-> SetTitle("GCD;V;nA");
+    leg-> Draw();    
+    sprintf(path,"/home/kycheng/Silicon_plot/FullWafer/wafer%d_GCD_NAN0.png",Wafer[wafer]);
+    c0-> Print(path);
+    mg1-> Draw("a");
+    mg1-> SetTitle("GCD;V;nA");
+    leg-> Draw();
+    sprintf(path,"/home/kycheng/Silicon_plot/FullWafer/wafer%d_GCD_NAN1.png",Wafer[wafer]);
+    c0-> Print(path);
+  }//end wafer loop  
+}
